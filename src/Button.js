@@ -322,12 +322,7 @@ class Button extends React.Component {
     constructor(props) {
         super(props);
 
-        this.invalidateColors = true;
-        this.radialProgressView = new RadialProgressView();
-        this.radialProgressView.setSize(110);
-        this.radialProgressView.setStrokeWidth(4);
-        this.radialProgressView.setProgressColor('#28BAFF');
-
+        this.focused = true;
         this.radialPaint = ctx => { };
         this.paint = ctx => { };
         this.paintTmp = ctx => { };
@@ -354,21 +349,38 @@ class Button extends React.Component {
         this.scale = window.devicePixelRatio;
         this.left = 0 * this.scale;
         this.top = 0 * this.scale;
-        this.right = 400 * this.scale;
-        this.bottom = 400 * this.scale;
+        this.right = 380 * this.scale;
+        this.bottom = (220 + 28) * this.scale;
+        this.cx = 190 * this.scale;
+        this.cy = (110 + 28) * this.scale;
+
+        this.buttonDefaultRadius = 57;
+        this.buttonRadius = 52;
+        this.strokeWidth = 4;
+        this.invalidateColors = true;
+        this.radialProgressView = new RadialProgressView();
+        this.radialProgressView.setSize(this.buttonRadius * 2 - this.strokeWidth);
+        this.radialProgressView.setStrokeWidth(this.strokeWidth);
+        this.radialProgressView.setProgressColor('#28BAFF');
     }
 
     componentDidMount() {
+        window.addEventListener('blur', this.handleBlur);
+        window.addEventListener('focus', this.handleFocus);
+        this.media = window.matchMedia('screen and (min-resolution: 2dppx)');
+        this.media.addEventListener('change', this.handleDevicePixelRatioChanged);
+
+
         this.canvas = document.getElementById('button-canvas');
         this.tinyWaveDrawable = new BlobDrawable(9);
         this.bigWaveDrawable = new BlobDrawable(12);
 
-        this.tinyWaveDrawable.minRadius = 62;
-        this.tinyWaveDrawable.maxRadius = 72;
+        this.tinyWaveDrawable.minRadius = Math.trunc(62 / this.buttonDefaultRadius * this.buttonRadius);
+        this.tinyWaveDrawable.maxRadius = Math.trunc(72 / this.buttonDefaultRadius * this.buttonRadius);
         this.tinyWaveDrawable.generateInitBlob();
 
-        this.bigWaveDrawable.minRadius = 65;
-        this.bigWaveDrawable.maxRadius = 75;
+        this.bigWaveDrawable.minRadius = Math.trunc(65 / this.buttonDefaultRadius * this.buttonRadius);
+        this.bigWaveDrawable.maxRadius = Math.trunc(75 / this.buttonDefaultRadius * this.buttonRadius);
         this.bigWaveDrawable.generateInitBlob();
 
         const color = '#66D4FB';
@@ -385,6 +397,38 @@ class Button extends React.Component {
 
         // console.log('[button] componentDidMount draw');
         this.draw();
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('blur', this.handleBlur);
+        window.removeEventListener('focus', this.handleFocus);
+        this.media.addEventListener('change', this.handleDevicePixelRatioChanged);
+    }
+
+    handleFocus = () => {
+        this.focused = true;
+        this.invokeDraw();
+    }
+
+    handleBlur = () => {
+        this.focused = false;
+    }
+
+    invokeDraw = () => {
+        if (this.raf) return;
+
+        this.draw();
+    }
+
+    handleDevicePixelRatioChanged = e => {
+        this.scale = window.devicePixelRatio;
+        this.left = 0 * this.scale;
+        this.top = 0 * this.scale;
+        this.right = 380 * this.scale;
+        this.bottom = (220 + 28) * this.scale;
+        this.cx = 190 * this.scale;
+        this.cy = (110 + 28) * this.scale;
+        this.forceUpdate();
     }
 
     fillColors(stateId, colorsToSet) {
@@ -445,6 +489,10 @@ class Button extends React.Component {
     }
 
     draw = (force = false) => {
+        this.raf = null;
+        if (!this.focused) {
+            return;
+        }
         // console.log('[button] draw');
         const { currentState, prevState, left, top, right, bottom } = this;
 
@@ -454,11 +502,11 @@ class Button extends React.Component {
             dt = 17;
         }
 
-        this.tinyWaveDrawable.minRadius = 62;
-        this.tinyWaveDrawable.maxRadius = 62 + 20 * FORM_SMALL_MAX;
+        this.tinyWaveDrawable.minRadius = Math.trunc(62 / this.buttonDefaultRadius * this.buttonRadius);
+        this.tinyWaveDrawable.maxRadius = Math.trunc((62 + 20 * FORM_SMALL_MAX) / this.buttonDefaultRadius * this.buttonRadius);
 
-        this.bigWaveDrawable.minRadius = 65;
-        this.bigWaveDrawable.maxRadius = 65 + 20 * FORM_BIG_MAX;
+        this.bigWaveDrawable.minRadius = Math.trunc(65 / this.buttonDefaultRadius * this.buttonRadius);
+        this.bigWaveDrawable.maxRadius = Math.trunc((65 + 20 * FORM_BIG_MAX) / this.buttonDefaultRadius * this.buttonRadius);
 
         if (this.animateToAmplitude !== this.amplitude) {
             this.amplitude = this.amplitude + this.animateAmplitudeDiff * dt;
@@ -576,8 +624,8 @@ class Button extends React.Component {
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.resetTransform();
 
-        const cx = this.canvas.width / 2;
-        const cy = this.canvas.height / 2;
+        const cx = this.cx;
+        const cy = this.cy;
 
         if (prevState && currentState && (currentState.stateId === MUTE_BUTTON_STATE_CONNECTING || prevState.stateId === MUTE_BUTTON_STATE_CONNECTING)) {
             let progress;
@@ -621,17 +669,17 @@ class Button extends React.Component {
 
             ctx.globalAlpha = 1.0;
             if (canSwitchProgress) {
-                this.drawCircle(ctx, cx, cy, this.scale, 57, paint);
+                this.drawCircle(ctx, cx, cy, this.scale, this.buttonRadius, paint);
                 paint = ctx => {
                     ctx.fillStyle = '#28BAFF';
                 };
                 if (progress !== 0) {
                     ctx.globalAlpha = progress;
-                    this.drawCircle(ctx, cx, cy, this.scale, 57, paint);
+                    this.drawCircle(ctx, cx, cy, this.scale, this.buttonRadius, paint);
                 }
             }
             ctx.globalAlpha = 1.0;
-            this.drawCircle(ctx, cx, cy, 55 * progress * this.scale, 1, this.paintTmp);
+            this.drawCircle(ctx, cx, cy, 1,Math.trunc(this.buttonRadius - 0.5 * this.strokeWidth) * progress * this.scale, this.paintTmp);
             if  (!canSwitchProgress) {
                 this.radialProgressView.draw(this.canvas, cx, cy, this.scale);
             }
@@ -639,7 +687,7 @@ class Button extends React.Component {
         } else {
             for (let i = 0; i < 2; i++) {
                 let alpha = 0;
-                let buttonRadius = 57;
+                let buttonRadius = this.buttonRadius;
                 let paint = null;
                 if (i === 0 && prevState) {
                     paint = prevState.shader;
@@ -691,7 +739,7 @@ class Button extends React.Component {
             // button
             for (let i = 0; i < 2; i++) {
                 let alpha = 0;
-                let buttonRadius = 57;
+                let buttonRadius = this.buttonRadius;
                 let paint = null;
                 if (i === 0 && prevState) {
                     paint = prevState.shader;
@@ -809,7 +857,7 @@ class Button extends React.Component {
         const { left, right, top, bottom, scale } = this;
 
         return (
-            <div id='button' className='button' style={{ background: '#192026' }}>
+            <div id='button' className='button' style={{ background: '#192026', height: bottom / scale, borderRadius: 12 }}>
                 <canvas id='button-canvas' width={right} height={bottom} style={{ width: right / scale, height: bottom / scale }}/>
             </div>
         );
